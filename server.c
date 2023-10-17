@@ -142,8 +142,6 @@ void handle_request(struct server_app *app, int client_socket) {
     char *request = malloc(strlen(buffer) + 1);
     strcpy(request, buffer);
 
-    // TODO: Parse the header and extract essential fields, e.g. file name
-    // Hint: if the requested path is "/" (root), default to index.html
     char file_name[BUFFER_SIZE] = "index.html";
     //Parsing request header to find file name
 
@@ -151,10 +149,11 @@ void handle_request(struct server_app *app, int client_socket) {
     char* end_of_file = strchr(start_of_file, ' ');
     int length = end_of_file - start_of_file;
     printf("request: \n%s\n", request);
-    printf("length: %d\n", length);
+    //printf("length: %d\n", length);
     
     if (length > 1) {
         strncpy(file_name, start_of_file, length);
+        file_name[length] = '\0';
     }
 
     printf("file name: %s\n", file_name);
@@ -178,13 +177,16 @@ void serve_local_file(int client_socket, const char *path) {
     // * Also send file content
     // (When the requested file does not exist):
     // * Generate a correct response
+    char* extension = strchr(path, '.');
+    printf("extension: %s\n", extension);
 
     char response[] = "HTTP/1.0 200 OK\r\n"
                       "Content-Type: text/plain; charset=UTF-8\r\n"
                       "Content-Length: 15\r\n"
                       "\r\n"
                       "Sample response";
-    printf("response: \n%s\n", response);
+    
+    
     send(client_socket, response, strlen(response), 0);
 }
 
