@@ -144,15 +144,20 @@ void handle_request(struct server_app *app, int client_socket) {
 
     // TODO: Parse the header and extract essential fields, e.g. file name
     // Hint: if the requested path is "/" (root), default to index.html
-    char file_name[] = "index.html";
+    char file_name[BUFFER_SIZE] = "index.html";
     //Parsing request header to find file name
+
     char* start_of_file = strchr(request, '/');
     char* end_of_file = strchr(start_of_file, ' ');
     int length = end_of_file - start_of_file;
+    printf("request: \n%s\n", request);
+    printf("length: %d\n", length);
+    
     if (length > 1) {
         strncpy(file_name, start_of_file, length);
     }
-    
+
+    printf("file name: %s\n", file_name);
     // TODO: Implement proxy and call the function under condition
     // specified in the spec
     // if (need_proxy(...)) {
@@ -179,7 +184,7 @@ void serve_local_file(int client_socket, const char *path) {
                       "Content-Length: 15\r\n"
                       "\r\n"
                       "Sample response";
-
+    printf("response: \n%s\n", response);
     send(client_socket, response, strlen(response), 0);
 }
 
