@@ -148,7 +148,7 @@ void handle_request(struct server_app *app, int client_socket) {
     char* start_of_file = strchr(request, '/');
     char* end_of_file = strchr(start_of_file, ' ');
     int length = end_of_file - start_of_file;
-    printf("request: \n%s\n", request);
+    //printf("request: \n%s\n", request);
     //printf("length: %d\n", length);
     
     if (length > 1) {
@@ -179,14 +179,25 @@ void serve_local_file(int client_socket, const char *path) {
     // * Generate a correct response
     char* extension = strchr(path, '.');
     printf("extension: %s\n", extension);
+    char response[BUFFER_SIZE] = "HTTP/1.0 200 OK\r\n";
+    //                  "Content-Type: text/plain; charset=UTF-8\r\n";
+    if (extension == NULL) {
+        printf("null\n");
+        strcat(response, "Content-Type: application/octet-stream\r\n");
+    } else if (strcmp(extension, ".html") == 0 || strcmp(extension, ".txt") == 0) {
+        printf("text\n");
+        strcat(response, "Content-Type: text/plain; charset=UTF-8\r\n");
+    } else if (strcmp(extension, ".jpg") == 0) {
+        printf("image\n");
+        strcat(response, "Content-Type: image/jpeg\r\n");
+    }
 
-    char response[] = "HTTP/1.0 200 OK\r\n"
-                      "Content-Type: text/plain; charset=UTF-8\r\n"
-                      "Content-Length: 15\r\n"
-                      "\r\n"
-                      "Sample response";
-    
-    
+    char response_pt2[] = "Content-Length: 15\r\n"
+                          "\r\n"
+                          "Sample response";
+    strcat(response, response_pt2);
+
+    printf("response:\n%s\n", response);
     send(client_socket, response, strlen(response), 0);
 }
 
