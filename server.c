@@ -142,7 +142,7 @@ void handle_request(struct server_app *app, int client_socket) {
     char *request = malloc(strlen(buffer) + 1);
     strcpy(request, buffer);
 
-    char file_name[BUFFER_SIZE] = "index.html";
+    char file_name[BUFFER_SIZE] = "/index.html";
     //Parsing request header to find file name
 
     char* start_of_file = strchr(request, '/');
@@ -167,20 +167,21 @@ void handle_request(struct server_app *app, int client_socket) {
 }
 
 void serve_local_file(int client_socket, const char *path) {
-    // TODO: Properly implement serving of local files
-    // The following code returns a dummy response for all requests
-    // but it should give you a rough idea about what a proper response looks like
-    // What you need to do 
     // (when the requested file exists):
     // * Open the requested file
     // * Build proper response headers (see details in the spec), and send them
     // * Also send file content
     // (When the requested file does not exist):
     // * Generate a correct response
+    printf("file to be opened: %s\n", path);
+    FILE* fptr;
+    fptr = fopen(path + 1, "r");
+    int file_size;
+
     char* extension = strchr(path, '.');
     printf("extension: %s\n", extension);
+
     char response[BUFFER_SIZE] = "HTTP/1.0 200 OK\r\n";
-    //                  "Content-Type: text/plain; charset=UTF-8\r\n";
     if (extension == NULL) {
         printf("null\n");
         strcat(response, "Content-Type: application/octet-stream\r\n");
@@ -192,10 +193,36 @@ void serve_local_file(int client_socket, const char *path) {
         strcat(response, "Content-Type: image/jpeg\r\n");
     }
 
-    char response_pt2[] = "Content-Length: 15\r\n"
-                          "\r\n"
-                          "Sample response";
+    if (fptr == NULL) {
+        perror("file does not exist \n");
+        send(client_socket, response, strlen(response), 0);
+        return;
+    } else {
+        fseek(fptr, 0L, SEEK_END);
+        file_size = ftell(fptr);
+        rewind(fptr);
+        char file_size_str[BUFFER_SIZE];
+        sprintf(file_size_str, "%d", file_size);
+
+        strcat(response, "Content-Length: ");
+        strcat(response, file_size_str);
+    }
+
+
+    char response_pt2[] = "\r\n"
+                          "\r\n";
     strcat(response, response_pt2);
+
+    int i = 0;
+    int buffer;
+    char file_contents[BUFFER_SIZE];
+
+    while ((buffer = fgetc(fptr)) != EOF ) {
+        file_contents[i++] = buffer;
+    }
+    file_contents[i++] = '\0';
+    
+    strcat(response, file_contents);
 
     printf("response:\n%s\n", response);
     send(client_socket, response, strlen(response), 0);
