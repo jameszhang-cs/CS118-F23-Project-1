@@ -166,26 +166,46 @@ void handle_request(struct server_app *app, int client_socket) {
     //}
 }
 
-void serve_local_file(int client_socket, const char *path) {
-    // (when the requested file exists):
-    // * Open the requested file
-    // * Build proper response headers (see details in the spec), and send them
-    // * Also send file content
-    // (When the requested file does not exist):
-    // * Generate a correct response
-    printf("file to be opened: %s\n", path);
-    FILE* fptr;
-    fptr = fopen(path + 1, "r");
-    int file_size;
+void send_error_response(int client_socket) {
+    char response[] = "HTTP/1.0 404 Not Found\r\n\r\n";
+    send(client_socket, response, strlen(response), 0);
+}
 
-    char* extension = strchr(path, '.');
+void send_file_content(int client_socket, FILE *fptr) {
+    char buffer[BUFFER_SIZE];
+    int bytes_read;
+    while ((bytes_read = fread(buffer, 1, sizeof(buffer), fptr)) > 0) {
+        send(client_socket, buffer, bytes_read, 0);
+    }
+}
+
+void serve_local_file(int client_socket, const char *path) {
+    printf("file to be opened: %s\n", path);
+    FILE *fptr = fopen(path + 1, "rb"); // Open in binary mode
+    char response[BUFFER_SIZE] = "";
+
+    if (fptr == NULL) {
+        perror("File does not exist\n");
+        send_error_response(client_socket);
+        return;
+    }
+
+    fseek(fptr, 0, SEEK_END);
+    int file_size = ftell(fptr);
+    rewind(fptr);
+
+    char *extension = strrchr(path, '.');
     printf("extension: %s\n", extension);
 
-    char response[BUFFER_SIZE] = "HTTP/1.0 200 OK\r\n";
+    strcat(response, "HTTP/1.0 200 OK\r\n");
+
     if (extension == NULL) {
         printf("null\n");
         strcat(response, "Content-Type: application/octet-stream\r\n");
-    } else if (strcmp(extension, ".html") == 0 || strcmp(extension, ".txt") == 0) {
+    } else if (strcmp(extension, ".html") == 0) {
+        printf("html\n");
+        strcat(response, "Content-Type: text/html; charset=UTF-8\r\n");
+    } else if (strcmp(extension, ".txt") == 0) {
         printf("text\n");
         strcat(response, "Content-Type: text/plain; charset=UTF-8\r\n");
     } else if (strcmp(extension, ".jpg") == 0) {
@@ -193,39 +213,19 @@ void serve_local_file(int client_socket, const char *path) {
         strcat(response, "Content-Type: image/jpeg\r\n");
     }
 
-    if (fptr == NULL) {
-        perror("file does not exist \n");
-        send(client_socket, response, strlen(response), 0);
-        return;
-    } else {
-        fseek(fptr, 0L, SEEK_END);
-        file_size = ftell(fptr);
-        rewind(fptr);
-        char file_size_str[BUFFER_SIZE];
-        sprintf(file_size_str, "%d", file_size);
+    char file_size_str[BUFFER_SIZE];
+    sprintf(file_size_str, "%d", file_size);
 
-        strcat(response, "Content-Length: ");
-        strcat(response, file_size_str);
-    }
+    strcat(response, "Content-Length: ");
+    strcat(response, file_size_str);
 
-
-    char response_pt2[] = "\r\n"
-                          "\r\n";
+    char response_pt2[] = "\r\n\r\n";
     strcat(response, response_pt2);
 
-    int i = 0;
-    int buffer;
-    char file_contents[BUFFER_SIZE];
-
-    while ((buffer = fgetc(fptr)) != EOF ) {
-        file_contents[i++] = buffer;
-    }
-    file_contents[i++] = '\0';
-    
-    strcat(response, file_contents);
-
-    printf("response:\n%s\n", response);
+    printf("Sending response:\n%s\n", response);
     send(client_socket, response, strlen(response), 0);
+    send_file_content(client_socket, fptr);
+    fclose(fptr);
 }
 
 void proxy_remote_file(struct server_app *app, int client_socket, const char *request) {
