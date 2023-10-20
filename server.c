@@ -18,6 +18,7 @@
 #define DEFAULT_SERVER_PORT 8081
 #define DEFAULT_REMOTE_HOST "131.179.176.34"
 #define DEFAULT_REMOTE_PORT 5001
+#define MEGABYTE 1024 * 1024
 
 struct server_app {
     // Parameters of the server
@@ -126,11 +127,6 @@ void parse_args(int argc, char *argv[], struct server_app *app)
 void handle_request(struct server_app *app, int client_socket) {
     char buffer[BUFFER_SIZE];
     ssize_t bytes_read;
-    // Read the request from HTTP client
-    // Note: This code is not ideal in the real world because it
-    // assumes that the request header is small enough and can be read
-    // once as a whole.
-    // However, the current version suffices for our testing.
     bytes_read = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
     if (bytes_read <= 0) {
         return;  // Connection closed or error
@@ -170,13 +166,13 @@ void handle_request(struct server_app *app, int client_socket) {
         percent = strstr(file_name, "%25");
     }
 
-    // TODO: Implement proxy and call the function under condition
-    // specified in the spec
-    // if (need_proxy(...)) {
-    //    proxy_remote_file(app, client_socket, file_name);
-    // } else {
-    serve_local_file(client_socket, file_name);
-    //}
+    char *extension = strrchr(file_name, '.');
+    
+    if (extension != NULL && strcmp(extension, ".ts") == 0) {
+        proxy_remote_file(app, client_socket, request);
+    } else {
+        serve_local_file(client_socket, file_name);
+    }
 }
 
 void send_error_response(int client_socket) {
@@ -193,9 +189,8 @@ void send_file_content(int client_socket, FILE *fptr) {
 }
 
 void serve_local_file(int client_socket, const char *path) {
-    //printf("file to be opened: %s\n", path);
     FILE *fptr = fopen(path + 1, "rb"); // Open in binary mode
-    char response[BUFFER_SIZE] = "";
+    char response[MEGABYTE] = "";
 
     if (fptr == NULL) {
         perror("File does not exist\n");
@@ -208,7 +203,6 @@ void serve_local_file(int client_socket, const char *path) {
     rewind(fptr);
 
     char *extension = strrchr(path, '.');
-    //printf("extension: %s\n", extension);
 
     strcat(response, "HTTP/1.0 200 OK\r\n");
 
@@ -235,7 +229,6 @@ void serve_local_file(int client_socket, const char *path) {
     char response_pt2[] = "\r\n\r\n";
     strcat(response, response_pt2);
 
-    //printf("Sending response:\n%s\n", response);
     send(client_socket, response, strlen(response), 0);
     send_file_content(client_socket, fptr);
     fclose(fptr);
@@ -244,13 +237,38 @@ void serve_local_file(int client_socket, const char *path) {
 void proxy_remote_file(struct server_app *app, int client_socket, const char *request) {
     // TODO: Implement proxy request and replace the following code
     // What's needed:
-    // * Connect to remote server (app->remote_server/app->remote_port)
+    // * Connect to remote server (app->remote_host/app->remote_port)
     // * Forward the original request to the remote server
     // * Pass the response from remote server back
     // Bonus:
     // * When connection to the remote server fail, properly generate
     // HTTP 502 "Bad Gateway" response
+    int remote_socket = socket(AF_INET, SOCK_STREAM, 0);
+    struct sockaddr_in server_addr;
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(app->remote_port);
+    server_addr.sin_addr.s_addr = inet_addr(app->remote_host);
+    
+    printf("connecting\n");
+    if (connect(remote_socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1) {
+        char response[] = "HTTP/1.0 502 Bad Gateway\r\n\r\n";
+        send(client_socket, response, strlen(response), 0);
+        return;
+    }
 
-    char response[] = "HTTP/1.0 501 Not Implemented\r\n\r\n";
+    char response[MEGABYTE];
+    response[0] = '\0';
+    if (send(remote_socket, request, strlen(request), 0) <= 0) {
+        char response[] = "HTTP/1.0 502 Bad Gateway\r\n\r\n";
+        send(client_socket, response, strlen(response), 0);
+        return;
+    }
+    if (recv(remote_socket, response, sizeof(response), 0) <= 0) {
+        char response[] = "HTTP/1.0 502 Bad Gateway\r\n\r\n";
+        send(client_socket, response, strlen(response), 0);
+        return;
+    }
+    close(remote_socket);
+
     send(client_socket, response, strlen(response), 0);
 }
