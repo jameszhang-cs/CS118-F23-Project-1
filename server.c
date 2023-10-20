@@ -126,7 +126,6 @@ void parse_args(int argc, char *argv[], struct server_app *app)
 void handle_request(struct server_app *app, int client_socket) {
     char buffer[BUFFER_SIZE];
     ssize_t bytes_read;
-
     // Read the request from HTTP client
     // Note: This code is not ideal in the real world because it
     // assumes that the request header is small enough and can be read
@@ -146,10 +145,8 @@ void handle_request(struct server_app *app, int client_socket) {
     //Parsing request header to find file name
 
     char* start_of_file = strchr(request, '/');
-    char* end_of_file = strchr(start_of_file, ' ');
-    int length = end_of_file - start_of_file;
-    //printf("request: \n%s\n", request);
-    //printf("length: %d\n", length);
+    char* end_of_file = strchr(start_of_file, '\r');
+    int length = end_of_file - start_of_file - 9;
     
     if (length > 1) {
         strncpy(file_name, start_of_file, length);
@@ -157,6 +154,22 @@ void handle_request(struct server_app *app, int client_socket) {
     }
 
     printf("file name: %s\n", file_name);
+    //converting %20 in request to spaces
+    char* space = strstr(file_name, "%20");
+    while (space != NULL) {
+        space[0] = ' ';
+        memmove(space + 1, space + 3, strlen(space + 3) + 1);
+        space = strstr(file_name, "%20");
+    }
+
+    //converting %25 in request to %
+    char* percent = strstr(file_name, "%25");
+    while (percent != NULL) {
+        percent[0] = '%';
+        memmove(percent + 1, percent + 3, strlen(percent + 3) + 1);
+        percent = strstr(file_name, "%25");
+    }
+
     // TODO: Implement proxy and call the function under condition
     // specified in the spec
     // if (need_proxy(...)) {
@@ -180,7 +193,7 @@ void send_file_content(int client_socket, FILE *fptr) {
 }
 
 void serve_local_file(int client_socket, const char *path) {
-    printf("file to be opened: %s\n", path);
+    //printf("file to be opened: %s\n", path);
     FILE *fptr = fopen(path + 1, "rb"); // Open in binary mode
     char response[BUFFER_SIZE] = "";
 
@@ -195,7 +208,7 @@ void serve_local_file(int client_socket, const char *path) {
     rewind(fptr);
 
     char *extension = strrchr(path, '.');
-    printf("extension: %s\n", extension);
+    //printf("extension: %s\n", extension);
 
     strcat(response, "HTTP/1.0 200 OK\r\n");
 
@@ -222,7 +235,7 @@ void serve_local_file(int client_socket, const char *path) {
     char response_pt2[] = "\r\n\r\n";
     strcat(response, response_pt2);
 
-    printf("Sending response:\n%s\n", response);
+    //printf("Sending response:\n%s\n", response);
     send(client_socket, response, strlen(response), 0);
     send_file_content(client_socket, fptr);
     fclose(fptr);
