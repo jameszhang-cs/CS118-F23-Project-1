@@ -249,26 +249,24 @@ void proxy_remote_file(struct server_app *app, int client_socket, const char *re
     server_addr.sin_port = htons(app->remote_port);
     server_addr.sin_addr.s_addr = inet_addr(app->remote_host);
     
-    printf("connecting\n");
     if (connect(remote_socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1) {
         char response[] = "HTTP/1.0 502 Bad Gateway\r\n\r\n";
         send(client_socket, response, strlen(response), 0);
         return;
     }
 
-    char response[MEGABYTE];
-    response[0] = '\0';
+    char buffer[1024];
+    int bytes_received;
+
     if (send(remote_socket, request, strlen(request), 0) <= 0) {
         char response[] = "HTTP/1.0 502 Bad Gateway\r\n\r\n";
         send(client_socket, response, strlen(response), 0);
         return;
     }
-    if (recv(remote_socket, response, sizeof(response), 0) <= 0) {
-        char response[] = "HTTP/1.0 502 Bad Gateway\r\n\r\n";
-        send(client_socket, response, strlen(response), 0);
-        return;
-    }
-    close(remote_socket);
 
-    send(client_socket, response, strlen(response), 0);
+    while ((bytes_received = recv(remote_socket, buffer, sizeof(buffer), 0)) > 0) {
+        send(client_socket, buffer, bytes_received, 0);
+    }
+
+    close(remote_socket);
 }
